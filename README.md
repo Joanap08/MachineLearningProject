@@ -12,5 +12,4 @@ Steps followed to build the model.
 5. Step - Checking the models performance in order to choose the best performer
 6. Step - Apply the best performer to the dataset test partioned to evaluate its performance as predictor.
 7. Step - Finally apply the model built to the 20 cases where "CLASSE" was unknown and check its performance for the matter
-8. Step - Check accuracy of the model
-9. Step - Conclusion
+8. Step - Conclusion
