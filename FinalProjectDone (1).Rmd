@@ -1,0 +1,126 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Joana"
+date: "19 January 2018"
+output: html_document
+---
+```{r,warning=FALSE, echo=FALSE, message=FALSE}
+if(!require(caret)) install.packages("caret")
+if(!require(gbm)) install.packages("gbm")
+if(!require(randomForest)) install.packages("randomForest")
+if(!require(klaR)) install.packages("klaR")
+if(!require(dplyr)) install.packages("dplyr")
+if(!require(randomForest)) install.packages("randomForest")
+if(!require(rpart)) install.packages("rpart")
+if(!require(kernlab)) install.packages("kernlab")
+if(!require(e1071)) install.packages("e1071")
+```
+
+#Project goal: The goal of the project is to predict the manner in which 6 individuals exercised using data from accelerometers on the belt, forearm, arm, and dumbell and apply it to 20 different test cases and check which machine learning algorithm shows better performance for this task.
+
+1. Step - Observing the frequency distribution over the train dataset in order to understand the generall trend of the "classe" variable.
+```{r Explore Data, message=FALSE, warning=FALSE, eval=TRUE, echo=FALSE}
+train<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", header = TRUE,na.strings=c("NA","#DIV/0!",""))
+test<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",header = TRUE,na.strings=c("NA","#DIV/0!",""))
+
+##Exploring data
+
+#Class Distribution
+percentage <- prop.table(table(train$classe)) * 100
+cbind(freq=table(train$classe), percentage=percentage)
+```
+2. Step - Cleaning missing data and remove irrevelant variables to improve our model performance by cleaning all the variables with missing values from our test and train datasets. 
+```{r, warning=FALSE, eval=TRUE, echo=FALSE}
+
+#Create a filter to remove all the first 7 rows and all NAs which are related to the time series.
+library(dplyr)
+
+gooddata<-names(test[,colMeans(is.na(test))==0])[8:59]
+
+#Use the filter applying to clean both data sets and make sure both have same variables for analysis.
+
+train<- train[,c(gooddata,"classe")]
+test<-test[,c(gooddata,"problem_id")]
+
+#Separate train dataset to increase performance and accuracy
+inTrain<- createDataPartition(train$classe, p=0.7, list=FALSE)
+trtest<- train[inTrain, ]
+ttest<- train[-inTrain, ]
+
+```
+3. We have uses K- fold Cross Validation for 10 iterations to create a number of partitions of sample observations, known as the validation sets, from the training data set, after fitting a model on to the training data, its performance is measured against each validation set and then averaged, gaining a better assessment of how the model will perform when asked to predict for new observations.
+```{r, Cross Validation, eval=TRUE}
+control <- trainControl(method="cv", number=10)
+metric <- "Accuracy"
+```
+
+4. Experimenting different models
+
+#####Linear Algorithms
+
+######1. Linear Discriminant Analysis (LDA)
+```{r,echo=TRUE,message=FALSE}
+set.seed(10)
+fit.lda <- train(classe~., data=trtest, method="lda", metric=metric, trControl=control)
+```
+#####Non-Linear Algorithms
+
+######2. k-Nearest Neighbors (kNN)
+```{r,echo=TRUE,message=FALSE}
+set.seed(10)
+fit.knn <- train(classe~., data=trtest, method="knn", metric=metric, trControl=control)
+```
+#####Advanced algorithms
+
+######3. Gradient Boosting (GBM)
+```{r,echo=FALSE,message=FALSE,results="hide"}
+set.seed(10)
+fit.gbm<- train(classe~.,data=trtest, method="gbm", metric=metric, trControl=control)
+```
+######4. Random Forest (RF)
+```{r, echo=TRUE,message=FALSE}
+set.seed(10)
+fit.rf <- train(classe~., data=trtest, method="rf", metric=metric, trControl=control)
+```
+
+5. Models Performance
+```{r Different models, message=FALSE, warning=FALSE, results="markup"}
+###Checking performance from all the models
+
+results <- resamples(list(lda=fit.lda, knn=fit.knn, gbm=fit.gbm, rf=fit.rf))
+summary(results)
+
+```
+
+6. Check the predictions of the models and apply them to the test part of the train data set to check its performance
+```{r warning=FALSE,message=FALSE, echo=TRUE, tidy=TRUE}
+
+predictLDA <- predict(fit.lda, newdata=ttest)
+confMatLDA <- confusionMatrix(predictLDA, ttest$classe)
+
+predictKNN <- predict(fit.knn, newdata=ttest)
+confMatKNN <- confusionMatrix(predictKNN, ttest$classe)
+
+predictGBM <- predict(fit.gbm, newdata=ttest)
+confMatGBM <- confusionMatrix(predictGBM, ttest$classe)
+
+predictRF <- predict(fit.rf, newdata=ttest)
+confMatRF <- confusionMatrix(predictRF, ttest$classe)
+
+performance <- matrix(round(c(confMatLDA$overall,confMatKNN$overall,confMatGBM$overall,confMatRF$overall),3), ncol=4)
+colnames(performance) <- c('Linear Discrimination Analysis (LDA)', 'K- Nearest Neighbors (KNN)','Gradient Boosting (GBM)','Random Forest (RF)')
+performance.table <- as.table(performance)
+print(performance.table)
+
+```
+
+7. Choosen Model applied to the real test dataset to determine the predictions of the classes. 
+```{r, echo=TRUE}
+predictions <- predict(fit.rf, test)
+table(predictions,test$problem_id)
+```
+
+8.Conclusion
+
+The best model as proven in 6. to be applicable for this prediction success is definite Random Forest, The results in 8 of our error sample also come to support our choice.
+In general, the more trees in the forest the more robust the forest looks like. In the same way in the random forest classifier, the higher the number of trees in the forest gives the high accuracy results. Which is the reason why we believe for our purpose this approach was the most suitable. 
